@@ -1,0 +1,19 @@
+ComfyUI-RynStudio
+
+Ryn H3 Director includes code adapted and modified from:
+AIMixer/ComfyUI_MiniMaxH3_Director
+Revision: 576424fb252b2b4a538e792027f7db1a5ef376e4
+Source: https://github.com/AIMixer/ComfyUI_MiniMaxH3_Director
+License: Apache License 2.0 (included in LICENSE)
+
+The upstream license contains this notice, retained exactly:
+Copyright 2026 ComfyUI-Bernini Contributors
+
+The adapted files have been modified for Ryn Studio, including an R2V-only
+node boundary, canonical state contract, explicit non-inheriting asset
+assignments, MODEL-only LoRA stacking, and disabled optional processing paths.
+
+Motion Context remains credited to the upstream implementation and its stated
+inspiration: NikoDemon80/ComfyUI-H3-Motion-Context. The retained implementation
+is the upstream project's Apache-2.0 implementation; no third-party GPL source
+is included here.

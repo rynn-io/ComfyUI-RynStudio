@@ -1,0 +1,8 @@
+{
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:js": "node --test tests/*.mjs",
+    "check:js": "node --check web/js/ryn_state_bridge.js && node --check web/js/minimax_timeline.js"
+  }
+}

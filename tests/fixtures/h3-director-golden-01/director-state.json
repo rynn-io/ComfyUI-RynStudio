@@ -1,0 +1,105 @@
+{
+  "format": "ryn.h3-director-project",
+  "schemaVersion": 1,
+  "project": {
+    "id": "golden-01-project",
+    "name": "Golden 01 — Basic continuity"
+  },
+  "assets": [
+    {
+      "id": "golden-character",
+      "kind": "image",
+      "name": "character.png",
+      "storage": { "scheme": "comfy-input", "key": "ryn-golden-01/character.png" },
+      "contentHash": null,
+      "metadata": { "mimeType": "image/png", "width": 1024, "height": 1024, "durationSeconds": null }
+    },
+    {
+      "id": "golden-room",
+      "kind": "image",
+      "name": "room.png",
+      "storage": { "scheme": "comfy-input", "key": "ryn-golden-01/room.png" },
+      "contentHash": null,
+      "metadata": { "mimeType": "image/png", "width": 1024, "height": 576, "durationSeconds": null }
+    }
+  ],
+  "scenes": [
+    {
+      "id": "golden-scene-01",
+      "name": "Character approaches the window",
+      "settings": {
+        "frameRate": 24,
+        "width": 864,
+        "height": 480,
+        "referenceImageSize": "match",
+        "audioMode": "generate",
+        "continuityDefaults": {
+          "contextFrames": 22,
+          "mode": "guide",
+          "redrawStrength": 0.1,
+          "keepAlignmentTail": true
+        },
+        "sampling": {
+          "steps": 25,
+          "sampler": "res_multistep",
+          "scheduler": "simple",
+          "cfg": 1.0,
+          "shiftVideo": 12.0,
+          "shiftAudio": 3.0
+        },
+        "loraStack": []
+      },
+      "segments": [
+        {
+          "id": "golden-segment-01",
+          "prompt": "<Picture 1> enters <Picture 2> through the doorway and looks toward the bright window. Medium-wide cinematic shot, natural walking motion, stable character appearance, quiet indoor ambience.",
+          "negativePrompt": "identity change, duplicate character, jump cut, camera teleport",
+          "frameCount": 90,
+          "references": {
+            "images": [
+              { "slot": 1, "assetId": "golden-character" },
+              { "slot": 2, "assetId": "golden-room" }
+            ],
+            "videos": [],
+            "audio": []
+          },
+          "motionContext": { "enabled": false, "sourceSegmentId": null },
+          "selectedTakeId": null
+        },
+        {
+          "id": "golden-segment-02",
+          "prompt": "<Picture 1> continues walking toward the same window in <Picture 2> and comes to a natural stop. Preserve direction, pose continuity, clothing, lighting, and camera position from the previous segment.",
+          "negativePrompt": "identity change, duplicate character, jump cut, reversed movement, camera teleport",
+          "frameCount": 90,
+          "references": {
+            "images": [
+              { "slot": 1, "assetId": "golden-character" },
+              { "slot": 2, "assetId": "golden-room" }
+            ],
+            "videos": [],
+            "audio": []
+          },
+          "motionContext": { "enabled": true, "sourceSegmentId": "golden-segment-01" },
+          "selectedTakeId": null
+        },
+        {
+          "id": "golden-segment-03",
+          "prompt": "<Picture 1> turns smoothly from the window toward the camera and gives a subtle warm smile inside <Picture 2>. Preserve the exact character, room, lighting, screen position, and motion from the previous segment.",
+          "negativePrompt": "identity change, duplicate character, jump cut, abrupt pose, camera teleport",
+          "frameCount": 90,
+          "references": {
+            "images": [
+              { "slot": 1, "assetId": "golden-character" },
+              { "slot": 2, "assetId": "golden-room" }
+            ],
+            "videos": [],
+            "audio": []
+          },
+          "motionContext": { "enabled": true, "sourceSegmentId": "golden-segment-02" },
+          "selectedTakeId": null
+        }
+      ],
+      "takes": []
+    }
+  ]
+}

@@ -1,0 +1,27 @@
+[project]
+name = "ryn-h3-director"
+description = "Ryn H3 Director for MiniMax H3 reference-to-video workflows in ComfyUI."
+version = "0.1.0"
+license = {file = "LICENSE"}
+requires-python = ">=3.10"
+classifiers = [
+    "Operating System :: OS Independent",
+    "Environment :: GPU :: NVIDIA CUDA",
+]
+dynamic = ["dependencies"]
+
+[tool.setuptools]
+packages = ["rynstudio", "rynstudio.h3"]
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[project.urls]
+Repository = "https://github.com/rynn-io/ComfyUI-RynStudio"
+Documentation = "https://github.com/rynn-io/ComfyUI-RynStudio#readme"
+"Bug Tracker" = "https://github.com/rynn-io/ComfyUI-RynStudio/issues"
+
+[tool.comfy]
+PublisherId = "rynn-io"
+DisplayName = "Ryn H3 Director"
+requires-comfyui = ">=0.36.0"

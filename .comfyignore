@@ -1,0 +1,14 @@
+# Registry packages only the runtime extension files.
+.github/
+.cursor/
+*.cursor*
+_seam_probe/
+_seam_probe_*/
+.minimax_seg_cache/
+.bernini_seg_cache/
+__pycache__/
+*.py[cod]
+*.egg-info/
+tests/
+docs/
+package.json
