@@ -74,6 +74,7 @@ def adapt_scene_to_timeline(
     *,
     scene_id: str,
     command: dict[str, Any] | None = None,
+    live_preview: bool = False,
 ) -> AdaptedScene:
     """Compile one validated scene into upstream's private R2V timeline representation."""
     scene = next((item for item in document["scenes"] if item["id"] == scene_id), None)
@@ -146,6 +147,7 @@ def adapt_scene_to_timeline(
         "segments": segments,
         "runSelectEnabled": selected_enabled,
         "runSelection": selected_indices,
+        "liveTaePreview": bool(live_preview),
     }
     stack = tuple(sorted((entry.copy() for entry in settings["loraStack"]), key=lambda entry: entry["order"]))
     return AdaptedScene(

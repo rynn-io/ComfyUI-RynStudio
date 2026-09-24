@@ -98,6 +98,14 @@ def test_valid_state_adapts_to_explicit_r2v_timeline_without_inheritance():
     assert adapted.segment_ids == ("segment-1", "segment-2")
 
 
+def test_live_preview_is_transient_adapter_state():
+    state = validate_project(project_state())
+    adapted = adapt_scene_to_timeline(state, scene_id="scene-1", live_preview=True)
+
+    assert adapted.timeline["liveTaePreview"] is True
+    assert "liveTaePreview" not in state
+
+
 def test_selective_execution_uses_original_segment_indices():
     state = validate_project(project_state())
     adapted = adapt_scene_to_timeline(

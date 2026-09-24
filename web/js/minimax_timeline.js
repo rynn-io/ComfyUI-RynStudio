@@ -106,11 +106,8 @@ import { mountPromptImageMentions, refreshPromptTokenEditors, teardownPromptImag
 import {
     applyI18nDom,
     aspectDisplayLabel,
-    getLocale,
-    onLocaleChange,
     t,
     taskDisplayLabel,
-    toggleLocale,
 } from "./minimax_i18n.js";
 import { bindPackActions } from "./minimax_pack.js";
 import {
@@ -2185,7 +2182,6 @@ class MiniMaxH3DirectorEditor {
         this.buildDOM();
         mountRynControls(this);
         this.bindEvents();
-        this._unsubLocale = onLocaleChange(() => this.applyLocale());
         this.applyLocale();
         this._directorMode = getDirectorMode(this.taskTypeWidget?.value);
         this._taskKey = resolveTaskKey(this.taskTypeWidget?.value);
@@ -2837,7 +2833,6 @@ class MiniMaxH3DirectorEditor {
                     </div>
                     <button type="button" class="bd-btn" data-a="pack-import" data-i18n="toolbar.importPack" data-i18n-title="tooltip.importPack">导入导演包</button>
                     <button type="button" class="bd-btn" data-a="pack-export" data-i18n="toolbar.exportPack" data-i18n-title="tooltip.exportPack">导出导演包</button>
-                    <button type="button" class="bd-btn" data-a="lang-toggle" data-i18n="toolbar.langToggle" data-i18n-title="toolbar.langToggleTitle">EN</button>
                     <div class="bd-bounds" data-r="bounds">起点: 0.00 | 终点: -</div>
                     <div class="bd-timecode" data-r="timecode">0.00s</div>
                 </div>
@@ -2847,7 +2842,6 @@ class MiniMaxH3DirectorEditor {
         this.root.appendChild(toolbarWrap);
         this.smartSplitMsgEl = toolbarWrap.querySelector('[data-r="smart-split-msg"]');
         this.externalGroupsMsgEl = toolbarWrap.querySelector('[data-r="external-groups-msg"]');
-        this.langToggleBtn = toolbarWrap.querySelector('[data-a="lang-toggle"]');
 
         this.mainBody = document.createElement("div");
         this.mainBody.className = "bd-main";
@@ -3356,7 +3350,6 @@ class MiniMaxH3DirectorEditor {
         bind('[data-a="del"]', () => this.deleteSelectedSegment());
         bind('[data-a="mode-global"]', () => this.setEditMode("global"));
         bind('[data-a="mode-segment"]', () => this.setEditMode("segment"));
-        bind('[data-a="lang-toggle"]', () => toggleLocale());
         bind('[data-a="zoom-toggle"]', () => this.toggleTimelineZoom());
         bindPackActions(this);
         bind('[data-a="play"]', () => this.togglePlay());
@@ -3812,8 +3805,6 @@ class MiniMaxH3DirectorEditor {
         cancelAnimationFrame(this._resizeRaf);
         cancelAnimationFrame(this._playRaf);
         this._resizeObserver?.disconnect();
-        this._unsubLocale?.();
-        this._unsubLocale = null;
         this._closeBdModal();
         teardownPromptImageMentions(this.root);
         this._clearPreviewVideos(true);
@@ -6125,8 +6116,8 @@ class MiniMaxH3DirectorEditor {
     }
 
     applyLocale() {
-        this.root?.classList.toggle("locale-en", getLocale() === "en");
-        this.root?.classList.toggle("locale-zh", getLocale() !== "en");
+        this.root?.classList.add("locale-en");
+        this.root?.classList.remove("locale-zh");
         applyI18nDom(this.root);
         applyDirectorWidgetLabels(this.node);
         this.populateTaskSelect(this.globalTask, this.taskTypeWidget?.value || this.globalTask?.value);

@@ -50,6 +50,13 @@ class RynH3Director:
                         "tooltip": "Transient selective-generation command; not portable project state.",
                     },
                 ),
+                "live_preview": (
+                    "BOOLEAN",
+                    {
+                        "default": True,
+                        "tooltip": "Stream approximate TAE preview frames to the requesting client.",
+                    },
+                ),
             }
         )
         optional = {
@@ -105,6 +112,7 @@ class RynH3Director:
         ryn_state,
         scene_id,
         runtime_command,
+        live_preview=True,
         unique_id=None,
         seed=0,
         sigmas=None,
@@ -135,7 +143,12 @@ class RynH3Director:
             scene_id=selected_scene_id,
             input_directory=folder_paths.get_input_directory(),
         )
-        adapted = adapt_scene_to_timeline(document, scene_id=selected_scene_id, command=command)
+        adapted = adapt_scene_to_timeline(
+            document,
+            scene_id=selected_scene_id,
+            command=command,
+            live_preview=bool(live_preview),
+        )
         sampling = adapted.sampling
         timeline_json = json.dumps(adapted.timeline, ensure_ascii=False, separators=(",", ":"))
         plan = build_director_plan(
