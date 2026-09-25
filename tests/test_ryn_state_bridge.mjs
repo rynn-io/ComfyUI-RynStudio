@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { mediaPickerKey, rynStateToTimeline, timelineToRynState } from "../web/js/ryn_state_bridge.js";
+import {
+    installStringWidgetSerializer,
+    mediaPickerKey,
+    rynStateToTimeline,
+    timelineToRynState,
+} from "../web/js/ryn_state_bridge.js";
 
 function state() {
     return {
@@ -51,6 +56,25 @@ test("canonical state projects to explicit zero-based R2V slots", () => {
 test("media picker outputs map to portable Comfy input keys", () => {
     assert.equal(mediaPickerKey({ imageFile: "pool/character.png" }, "image"), "pool/character.png");
     assert.equal(mediaPickerKey({ videoFile: "pool/motion.mp4" }, "video"), "pool/motion.mp4");
+});
+
+test("string widget serialization never forwards the ComfyNode into an older serializer", () => {
+    const node = { widgets: [] };
+    const widget = {
+        value: "timeline-json",
+        serializeValue(targetNode) {
+            return targetNode;
+        },
+    };
+    node.widgets.push(widget);
+
+    installStringWidgetSerializer(widget, (targetNode, raw) => {
+        assert.equal(targetNode, node);
+        return `${raw}:witness`;
+    });
+
+    assert.equal(widget.serializeValue(node, 0), "timeline-json:witness");
+    assert.doesNotThrow(() => JSON.stringify({ timeline_data: widget.serializeValue(node, 0) }));
 });
 
 

@@ -12,6 +12,7 @@ from ..director.executor_core import execute_director_plan_core
 from ..director.plan import build_director_plan
 from ..rynstudio.h3.adapter import adapt_scene_to_timeline
 from ..rynstudio.h3.loras import apply_model_lora_stack
+from ..rynstudio.h3.model_optimizations import apply_h3_optimizations
 from ..rynstudio.h3.state import (
     StateValidationError,
     validate_project,
@@ -76,6 +77,38 @@ class RynH3Director:
                 "sigmas",
             }
         }
+        optional.update(
+            {
+                "low_vram_attention": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "Split MiniMax H3 attention heads to reduce peak VRAM."},
+                ),
+                "attention_head_chunks": (
+                    "INT",
+                    {"default": 4, "min": 1, "max": 64, "step": 1},
+                ),
+                "chunk_feed_forward": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "Process long MiniMax H3 feed-forward sequences in chunks."},
+                ),
+                "feed_forward_chunks": (
+                    "INT",
+                    {"default": 2, "min": 1, "max": 64, "step": 1},
+                ),
+                "feed_forward_sequence_threshold": (
+                    "INT",
+                    {"default": 4096, "min": 1, "max": 1048576, "step": 1},
+                ),
+                "fp16_accumulation": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "Enable CUDA FP16 matmul accumulation only while this model runs."},
+                ),
+                "comfy_kitchen_attention": (
+                    "BOOLEAN",
+                    {"default": False, "tooltip": "Use ComfyUI's Comfy Kitchen INT8 attention backend when available."},
+                ),
+            }
+        )
         return {"required": required, "optional": optional, "hidden": {"unique_id": "UNIQUE_ID"}}
 
     @classmethod
@@ -118,6 +151,13 @@ class RynH3Director:
         sigmas=None,
         clear_vram_between_segments=True,
         export_source_images=False,
+        low_vram_attention=False,
+        attention_head_chunks=4,
+        chunk_feed_forward=False,
+        feed_forward_chunks=2,
+        feed_forward_sequence_threshold=4096,
+        fp16_accumulation=False,
+        comfy_kitchen_attention=False,
         **_legacy_widgets,
     ):
         try:
@@ -166,6 +206,16 @@ class RynH3Director:
             segment.ryn_id = stable_id
         plan.ryn_lora_stack = tuple(entry.copy() for entry in adapted.lora_stack)
         model, unchanged_clip, applied_loras = apply_model_lora_stack(model, clip, adapted.lora_stack)
+        model = apply_h3_optimizations(
+            model,
+            low_vram_attention=bool(low_vram_attention),
+            attention_head_chunks=int(attention_head_chunks),
+            chunk_feed_forward=bool(chunk_feed_forward),
+            feed_forward_chunks=int(feed_forward_chunks),
+            feed_forward_sequence_threshold=int(feed_forward_sequence_threshold),
+            fp16_accumulation=bool(fp16_accumulation),
+            comfy_kitchen_attention=bool(comfy_kitchen_attention),
+        )
         plan.ryn_applied_loras = applied_loras
         try:
             (

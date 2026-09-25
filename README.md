@@ -13,14 +13,15 @@
 - Motion Context `guide` and `continue`/redraw modes;
 - ordered scene-level LoRAs applied to MODEL only;
 - MiniMax H3 conditioning, continuity, cache, AV decoding, and output paths;
+- opt-in low-VRAM attention, chunked feed-forward, FP16 accumulation, and Comfy Kitchen INT8 attention controls;
 - ComfyUI web UI for timeline editing and media assignment.
 
 Refine, FaceRefine, SelfLift, Semantic Bridge, external Group execution, prompt enhancement, and non-R2V authoring are not included in this release.
 
 ## Requirements
 
-- ComfyUI `0.36.0` or newer;
-- ComfyUI frontend `1.52.7` is the currently validated frontend;
+- ComfyUI `0.35.0` or newer;
+- ComfyUI frontend `1.51.10` or newer;
 - Python 3.10 or newer;
 - an NVIDIA CUDA environment capable of running MiniMax H3;
 - FFmpeg available to ComfyUI for media probing and export;
@@ -49,18 +50,9 @@ The video VAE has same-named variants with different contents. The validated `mi
 
 You are responsible for reviewing and complying with each model repository's license, access conditions, and usage terms.
 
-## Install with ComfyUI Manager
-
-Once the Registry listing is live:
-
-1. Open **ComfyUI Manager**.
-2. Select **Custom Nodes Manager** or **Install Custom Nodes**.
-3. Search for `Ryn H3 Director`.
-4. Install it and restart ComfyUI.
-
-If the listing is not yet visible, use the manual installation below.
-
 ## Manual installation
+
+This repository is private. Authenticate Git for an authorized GitHub account before cloning it.
 
 ### Standard ComfyUI installation
 
@@ -107,6 +99,17 @@ python -m pip install "scenedetect>=0.6.4,<0.8"
 
 The hidden `ryn_state` widget is the canonical creative document. `timeline_data` is a UI/execution projection, while queue selection is stored separately in `runtime_command`.
 
+## Optional H3 optimizations
+
+All optimization controls are disabled by default and clone the incoming MODEL only when enabled:
+
+- **MiniMax H3 low-VRAM attention** splits attention heads (`4` chunks by default);
+- **Chunk MiniMax H3 feed-forward** chunks sequences longer than `4096` tokens (`2` chunks by default);
+- **FP16 accumulation** enables CUDA FP16 matmul accumulation for the patched model run and restores the previous global value during cleanup;
+- **Comfy Kitchen INT8 attention** selects ComfyUI's built-in backend and reports a clear error when the backend is unavailable.
+
+Low-VRAM head chunking and chunked feed-forward are implemented directly in this package and do not require KJNodes.
+
 ## LoRAs
 
 Enabled LoRAs are sorted by `order` and applied sequentially to the incoming MODEL. CLIP is passed through unchanged. An empty stack does not load or patch either input.
@@ -119,7 +122,7 @@ Enabled LoRAs are sorted by `order` and applied sequentially to the incoming MOD
 - **Video export fails:** confirm `ffmpeg` and `ffprobe` are available to the ComfyUI process.
 - **Frontend behavior differs:** update to the validated ComfyUI/frontend baseline before reporting a UI issue.
 
-Report reproducible problems at the [GitHub issue tracker](https://github.com/rynn-io/ComfyUI-RynStudio/issues). Do not include API keys, tokens, private media, or private workflows in issue reports.
+Authorized collaborators can report reproducible problems in the repository issue tracker. Do not include API keys, tokens, private media, or private workflows in issue reports.
 
 ## Development and tests
 

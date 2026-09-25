@@ -117,6 +117,7 @@ import {
 } from "./minimax_external_witness.js";
 import {
     initializeRynEditor,
+    installStringWidgetSerializer,
     isRynDirectorNode,
     mountRynControls,
     syncRynStateWidgets,
@@ -505,6 +506,13 @@ const DIRECTOR_WIDGET_LABEL_KEYS = {
     clear_vram_between_segments: "widget.clearVram",
     clear_vram_before_refine: "widget.clearVramBeforeRefine",
     clear_vram_before_face_refine: "widget.clearVramBeforeFaceRefine",
+    low_vram_attention: "widget.lowVramAttention",
+    attention_head_chunks: "widget.attentionHeadChunks",
+    chunk_feed_forward: "widget.chunkFeedForward",
+    feed_forward_chunks: "widget.feedForwardChunks",
+    feed_forward_sequence_threshold: "widget.feedForwardThreshold",
+    fp16_accumulation: "widget.fp16Accumulation",
+    comfy_kitchen_attention: "widget.comfyKitchenAttention",
     export_source_images: "widget.exportSourceImages",
     export_pre_face_refine: "widget.exportPreFaceRefine",
     control_after_generate: "widget.controlAfterGenerate",
@@ -1658,6 +1666,13 @@ const PERF_WIDGET_ORDER = [
     "clear_vram_between_segments",
     "clear_vram_before_refine",
     "clear_vram_before_face_refine",
+    "low_vram_attention",
+    "attention_head_chunks",
+    "chunk_feed_forward",
+    "feed_forward_chunks",
+    "feed_forward_sequence_threshold",
+    "fp16_accumulation",
+    "comfy_kitchen_attention",
 ];
 
 function moveDirectorPerfWidgetsBeforeTimeline(node) {
@@ -2162,18 +2177,10 @@ class MiniMaxH3DirectorEditor {
         // stale witness in the submitted timeline_data.
         if (this.timelineWidget && !this.timelineWidget._mmxWitnessSerialized) {
             const widget = this.timelineWidget;
-            const previous = typeof widget.serializeValue === "function"
-                ? widget.serializeValue
-                : null;
             widget._mmxWitnessSerialized = true;
-            widget.serializeValue = function (targetNode) {
-                const raw = previous
-                    ? previous.call(widget, targetNode)
-                    : widget.value;
-                return typeof raw === "string"
-                    ? injectExternalGroupsWitness(targetNode ?? node, raw)
-                    : raw;
-            };
+            installStringWidgetSerializer(widget, (targetNode, raw) => (
+                injectExternalGroupsWitness(targetNode ?? node, raw)
+            ));
         }
 
         const initTotal = Math.max(0, parseInt(this.totalFramesWidget?.value || 124, 10));

@@ -14,6 +14,25 @@ function widget(node, name) {
     return (node?.widgets || []).find((item) => item?.name === name) || null;
 }
 
+/**
+ * Install a ComfyUI-compatible serializer for a hidden STRING widget.
+ *
+ * Frontend 1.51 passes the owning node as the first argument. Delegating to a
+ * serializer from a different frontend contract can return that live node and
+ * make prompt JSON serialization recurse through a circular graph. Hidden
+ * state widgets already own their canonical string value, so serialize it
+ * directly instead.
+ */
+export function installStringWidgetSerializer(target, transform = (_node, value) => value) {
+    if (!target || target._rynStringSerializerInstalled) return;
+    target._rynStringSerializerInstalled = true;
+    target.serializeValue = function (node) {
+        const value = typeof target.value === "string" ? target.value : String(target.value ?? "");
+        const serialized = transform(node, value);
+        return typeof serialized === "string" ? serialized : value;
+    };
+}
+
 function parseJson(value, fallback = null) {
     try {
         const parsed = JSON.parse(String(value || ""));

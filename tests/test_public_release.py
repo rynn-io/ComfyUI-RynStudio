@@ -15,14 +15,15 @@ def test_public_registry_metadata_is_complete():
     assert metadata["project"]["urls"]["Bug Tracker"].endswith("/issues")
     assert metadata["tool"]["comfy"]["PublisherId"] == "rynn-io"
     assert metadata["tool"]["comfy"]["DisplayName"] == "Ryn H3 Director"
-    assert metadata["tool"]["comfy"]["requires-comfyui"] == ">=0.36.0"
+    assert metadata["tool"]["comfy"]["requires-comfyui"] == ">=0.35.0"
     assert "Icon" not in metadata["tool"]["comfy"]
 
 
-def test_public_readme_has_manager_and_manual_installation():
+def test_private_readme_has_authenticated_manual_installation():
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
-    assert "ComfyUI Manager" in readme
+    assert "repository is private" in readme
+    assert "Authenticate Git" in readme
     assert "git clone https://github.com/rynn-io/ComfyUI-RynStudio.git" in readme
     assert "python_embeded" in readme
     assert "## Required models" in readme
