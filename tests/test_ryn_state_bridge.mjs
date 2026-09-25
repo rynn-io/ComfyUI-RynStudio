@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+    assignAsset,
     installStringWidgetSerializer,
     mediaPickerKey,
     rynStateToTimeline,
@@ -53,9 +54,36 @@ test("canonical state projects to explicit zero-based R2V slots", () => {
     assert.equal(timeline.output.continuityMode, "continue");
 });
 
+test("shared references survive canonical state and timeline round trips", () => {
+    const document = state();
+    document.scenes[0].sharedReferences = {
+        images: [{ slot: 1, assetId: "assigned" }], videos: [], audio: [],
+    };
+    const timeline = rynStateToTimeline(document, "scene-1");
+    assert.equal(timeline.global.commonEnabled, true);
+    assert.equal(timeline.global.refs[0].imageFile, "ryn/assigned.png");
+
+    const result = timelineToRynState(editorFor(document, timeline), timeline);
+    assert.deepEqual(result.scenes[0].sharedReferences, document.scenes[0].sharedReferences);
+});
+
 test("media picker outputs map to portable Comfy input keys", () => {
     assert.equal(mediaPickerKey({ imageFile: "pool/character.png" }, "image"), "pool/character.png");
     assert.equal(mediaPickerKey({ videoFile: "pool/motion.mp4" }, "video"), "pool/motion.mp4");
+    assert.equal(mediaPickerKey({ audioFile: "pool/voice.wav" }, "audio"), "pool/voice.wav");
+});
+
+test("asset assignment supports shared and selected-segment targets", () => {
+    const timeline = rynStateToTimeline(state(), "scene-1");
+    const editor = { timeline, selectedIndex: 1, render() {}, commit() {} };
+    const asset = state().assets[1];
+
+    assignAsset(editor, asset, "shared");
+    assignAsset(editor, asset, "segment");
+
+    assert.equal(timeline.global.commonEnabled, true);
+    assert.equal(timeline.global.refs.at(-1).imageFile, "ryn/unused.png");
+    assert.equal(timeline.segments[1].refs.at(-1).imageFile, "ryn/unused.png");
 });
 
 test("string widget serialization never forwards the ComfyNode into an older serializer", () => {

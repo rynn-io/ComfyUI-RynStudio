@@ -124,4 +124,4 @@ def segment_passthrough_chunk(plan: DirectorPlan, seg) -> torch.Tensor | None:
 
 
 def frames_label(seg) -> str:
-    return f"帧 {seg.start_frame}–{seg.end_frame} ({seg.frame_count}f)"
+    return f"Frames {seg.start_frame}–{seg.end_frame} ({seg.frame_count}f)"

@@ -126,9 +126,9 @@ class RynH3Director:
                 return f"{name}: expected {expected}, linked node returns {actual}."
         return True
 
-    RETURN_TYPES = MiniMaxH3Director.RETURN_TYPES
-    RETURN_NAMES = MiniMaxH3Director.RETURN_NAMES
-    OUTPUT_IS_LIST = MiniMaxH3Director.OUTPUT_IS_LIST
+    RETURN_TYPES = ("IMAGE", "AUDIO", "FLOAT", "INT", "IMAGE", "STRING")
+    RETURN_NAMES = ("images", "audio", "fps", "frame_count", "source_images", "report")
+    OUTPUT_IS_LIST = (True, True, False, False, True, False)
     FUNCTION = "execute"
     CATEGORY = "Ryn Studio/H3"
     DESCRIPTION = (
@@ -249,7 +249,7 @@ class RynH3Director:
                 clear_vram_before_face_refine=False,
                 export_pre_face_refine=False,
             )
-            return finalize_director_outputs(
+            outputs = finalize_director_outputs(
                 plan,
                 combined,
                 segment_outputs,
@@ -264,6 +264,12 @@ class RynH3Director:
                 export_pre_face_refine=False,
                 block_final_images=held_for_confirmation,
             )
+            clean_report = "\n\n".join(
+                paragraph
+                for paragraph in str(outputs[5]).split("\n\n")
+                if not paragraph.startswith(("images_pre_refine:", "images_pre_face_refine:"))
+            )
+            return (*outputs[:5], clean_report)
         finally:
             cache = getattr(plan, "audio_decode_cache", None)
             if isinstance(cache, dict):

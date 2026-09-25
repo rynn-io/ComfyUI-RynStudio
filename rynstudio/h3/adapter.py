@@ -85,6 +85,10 @@ def adapt_scene_to_timeline(
     selected_enabled, selected_indices, output_mode = _selection(segment_ids, scene_id, command)
     settings = scene["settings"]
     continuity = settings["continuityDefaults"]
+    shared = scene.get("sharedReferences") or {"images": [], "videos": [], "audio": []}
+    shared_images = [_image_ref(ref, assets[ref["assetId"]]) for ref in shared.get("images", [])]
+    shared_videos = [_video_ref(ref, assets[ref["assetId"]]) for ref in shared.get("videos", [])]
+    shared_audio = [_audio_ref(ref, assets[ref["assetId"]]) for ref in shared.get("audio", [])]
 
     cursor = 0
     segments: list[dict[str, Any]] = []
@@ -123,10 +127,10 @@ def adapt_scene_to_timeline(
         "global": {
             "taskType": _R2V_TASK,
             "prompt": "",
-            "commonEnabled": False,
-            "refs": [],
-            "refVideos": [],
-            "refAudios": [],
+            "commonEnabled": bool(shared_images or shared_videos or shared_audio),
+            "refs": shared_images,
+            "refVideos": shared_videos,
+            "refAudios": shared_audio,
             "continuousReference": False,
         },
         "output": {

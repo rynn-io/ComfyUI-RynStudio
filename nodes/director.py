@@ -135,12 +135,12 @@ class MiniMaxH3Director:
                             "on the final decoded frames (after Refine if that is also wired), "
                             "re-samples the crop, and pastes the face back. "
                             "images is after stitch; images_pre_face_refine is before stitch "
-                            "when「输出修脸前」is on (otherwise that output is blocked). "
+                            "when pre-FaceRefine output is enabled (otherwise that output is blocked). "
                             "Unconnected = no face pass (that output stays blocked)."
                         ),
                     },
                 ),
-                "bd_grp_advanced": ("BDGROUP", {"default": "高级采样"}),
+                "bd_grp_advanced": ("BDGROUP", {"default": "Advanced sampling"}),
                 "steps": (
                     "INT",
                     {
@@ -148,8 +148,8 @@ class MiniMaxH3Director:
                         "min": 1,
                         "max": 200,
                         "tooltip": (
-                            "一采步数（官方模板 25）。"
-                            "接了 sigmas 口后忽略此项，改用外接噪声表。"
+                            "First-pass steps (official template: 25). "
+                            "Ignored when sigmas is connected."
                         ),
                     },
                 ),
@@ -165,8 +165,8 @@ class MiniMaxH3Director:
                     {
                         "default": "simple",
                         "tooltip": (
-                            "一采调度器（官方模板 simple）。"
-                            "接了 sigmas 口后忽略此项，改用外接噪声表。"
+                            "First-pass scheduler (official template: simple). "
+                            "Ignored when sigmas is connected."
                         ),
                     },
                 ),
@@ -184,10 +184,10 @@ class MiniMaxH3Director:
                     {
                         "forceInput": True,
                         "tooltip": (
-                            "可选。一采噪声表，接 BasicScheduler 或 ManualSigmas。"
-                            "接线后覆盖导演台「步数」和「调度器」（采样器下拉仍有效）。"
-                            "BasicScheduler 请接 SigmaShift 之后的同一套 H3 MODEL。"
-                            "不接则仍用步数 + 调度器、denoise=1 自动算表。"
+                            "Optional first-pass noise schedule from BasicScheduler or ManualSigmas. "
+                            "When connected it overrides Director steps and scheduler; sampler selection still applies. "
+                            "BasicScheduler must use the same H3 MODEL after SigmaShift."
+                            "When disconnected, steps and scheduler calculate the denoise=1 schedule automatically."
                         ),
                     },
                 ),
@@ -267,7 +267,7 @@ class MiniMaxH3Director:
         "(second sample / upscale). Optional face_refine accepts MiniMax H3 Director FaceRefine "
         "(crop / re-sample / stitch). images_pre_refine is the first-pass video before refine. "
         "images_pre_face_refine is the video before face stitch "
-        "(blocked unless FaceRefine is connected and「输出修脸前」is on). "
+        "(blocked unless FaceRefine is connected and pre-FaceRefine output is enabled). "
         "Defaults: 0.4MP 16:9 (864×480), 5s / 124 frames @ 24 fps."
     )
 

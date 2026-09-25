@@ -479,14 +479,13 @@ def execute_director_plan_core(
     if first_pass_sigmas is not None:
         sigma_steps = max(0, len(first_pass_sigmas) - 1)
         reports.append(
-            f"Sample: 外接 SIGMAS（{sigma_steps} 步）→ MiniMaxH3SigmaShift(model) → "
-            "BasicGuider/CFGGuider → SamplerCustomAdvanced。"
-            "导演台步数/调度器已忽略。"
+            f"Sample: external SIGMAS ({sigma_steps} steps) → MiniMaxH3SigmaShift(model) → "
+            "BasicGuider/CFGGuider → SamplerCustomAdvanced. Director steps and scheduler are ignored."
         )
     else:
         if sigmas is not None:
             reports.append(
-                "Sample: 外接 SIGMAS 无效（至少需要 2 个数），回退步数 + 调度器。"
+                "Sample: external SIGMAS is invalid (at least two values required); using steps and scheduler."
             )
         reports.append(
             "Sample: official MiniMaxH3SigmaShift → BasicScheduler → "
@@ -498,24 +497,24 @@ def execute_director_plan_core(
     if mp4_run_dir is not None:
         reports.append(f"Segment mp4 export dir: {mp4_run_dir}")
     if live_tae_preview:
-        reports.append("Live preview: ON — 采样中 TAE 动态预览（成片看下游 CreateVideo / SaveVideo）。")
+        reports.append("Live preview: ON — streaming TAE previews while sampling. Use CreateVideo or SaveVideo for the final result.")
     else:
-        reports.append("Live preview: OFF — 跳过采样预览。")
+        reports.append("Live preview: OFF — sampling previews are disabled.")
     shift_cache = ShiftedModelCache()
     if clear_vram_between_segments:
-        reports.append("VRAM: 段间清理显存已开启（最后一段不清理）。")
+        reports.append("VRAM: clearing between segments is enabled (except after the final segment).")
     if clear_vram_before_refine:
-        reports.append("VRAM: 二采前清理显存已开启（一采结束后、二采开始前卸载模型）。")
+        reports.append("VRAM: clearing before the second pass is enabled.")
     if clear_vram_before_face_refine:
-        reports.append("VRAM: 脸修前清理显存已开启（解码后、FaceRefine 开始前卸载模型）。")
+        reports.append("VRAM: clearing before FaceRefine is enabled.")
     if export_pre_face_refine:
         extra = (
-            "；分段导出另存 seg_XXXX_facepre.mp4"
+            "; segmented export also writes seg_XXXX_facepre.mp4"
             if getattr(plan, "export_mode", "all") == "segments"
             else ""
         )
         reports.append(
-            f"Output: 输出修脸前已开启（images_pre_face_refine 为贴回前整段视频{extra}）。"
+            f"Output: pre-FaceRefine frames are enabled{extra}."
         )
     if audio_mode == AUDIO_MODE_MUTE:
         reports.append("Audio: muted — skip audio VAE decode, silent AUDIO output.")
@@ -669,9 +668,9 @@ def execute_director_plan_core(
         if continuity_active:
             if prev_idx in passthrough_indices:
                 raise ValueError(
-                    f"段间连贯：片段 #{seg.index + 1} 的前一段 #{prev_idx + 1} "
-                    "是源视频透传（未采样/无有效缓存），不能作为 motion context。"
-                    "请先运行该段，或将其纳入「选择运行」。"
+                    f"Segment continuity: the preceding segment #{prev_idx + 1} for segment #{seg.index + 1} "
+                    "is source-video passthrough without a valid sampled cache and cannot supply motion context. "
+                    "Run the preceding segment first or include it in the run selection."
                 )
             prev_seg = all_segments[prev_idx] if prev_idx >= 0 else None
             prev_from_this_run = prev_idx in resampled_this_run
@@ -733,14 +732,14 @@ def execute_director_plan_core(
             if prev_av is None and prev_tail is None:
                 reports.append(
                     f"Segment {seg.index + 1}/{timeline_seg_total}: "
-                    "上一段无有效缓存，已跳过段间引导"
-                    "（重跑上一段或将其纳入「选择运行」可恢复衔接）"
+                    "continuity skipped because the preceding segment has no valid cache. "
+                    "Rerun it or include it in the run selection to restore continuity."
                 )
             elif not prev_from_this_run:
                 reports.append(
                     f"Segment {seg.index + 1}/{timeline_seg_total}: "
-                    f"引导接自上一段 #{prev_idx + 1} 的磁盘缓存"
-                    "（该段本轮未重跑；接缝对齐成片中的旧结果）"
+                    f"continuity uses the disk cache from preceding segment #{prev_idx + 1}; "
+                    "that segment was not rerun, so the seam aligns with its prior result."
                 )
             if prev_handoff:
                 prev_end_frame = handoff_end_frame(
@@ -1178,8 +1177,8 @@ def execute_director_plan_core(
             if isinstance(cached_low, dict) and "samples" in cached_low:
                 completed_low_carry[seg.index] = cached_low
             reports.append(
-                f"Segment {ui_idx + 1}/{timeline_seg_total}: 命中一采缓存 "
-                f"(seed={int(getattr(plan, 'sample_seed', seed) or seed)})，跳过一采，开始二采"
+                f"Segment {ui_idx + 1}/{timeline_seg_total}: first-pass cache hit "
+                f"(seed={int(getattr(plan, 'sample_seed', seed) or seed)}); skipping to the second pass"
             )
         elif selflift_will_run(plan, seg):
             samples, low_carry = sample_selflift_stage(
@@ -1381,8 +1380,8 @@ def execute_director_plan_core(
             )
         elif hold_after_first:
             refine_note = (
-                f"先确认一采（已缓存 seed={int(getattr(plan, 'sample_seed', seed) or seed)}，未二采；"
-                "用同一 seed 再 Queue 将只跑二采）"
+                f"first pass confirmed and cached with seed={int(getattr(plan, 'sample_seed', seed) or seed)}; "
+                "queue again with the same seed to run only the second pass"
             )
         else:
             refine_note = ""
@@ -1706,13 +1705,13 @@ def execute_director_plan_core(
         reports.append(
             "Passthrough (not sampled) segment(s) "
             f"{[i + 1 for i in passthrough_indices]} — run selection is honored; "
-            "unselected gaps filled from cache/source for「全部导出」."
+            "unselected gaps filled from cache/source for combined export."
         )
     if skipped_no_cache:
         reports.append(
             "Skipped segment(s) with no cache "
-            f"{skipped_no_cache} — omitted from「全部导出」merge "
-            "(勾选重跑或先全跑可补上)."
+            f"{skipped_no_cache} — omitted from the combined export "
+            "(rerun those segments or run the full timeline to fill them)."
         )
 
     if not output_chunks and not segment_outputs:

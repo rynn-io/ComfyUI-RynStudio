@@ -2890,7 +2890,7 @@ class MiniMaxH3DirectorEditor {
         splitEditBar.setAttribute("data-r", "split-edit-bar");
         splitEditBar.innerHTML = `
             <span class="bd-split-edit-hint" data-r="split-edit-hint" data-i18n="split.selectedHint">已选中分割点</span>
-            <button type="button" class="bd-btn bd-btn-del-split" data-a="del-split" data-i18n="toolbar.deleteSplitPoint" data-i18n-title="tooltip.deleteSplitPoint">删除分割点</button>`;
+            <button type="button" class="bd-btn bd-btn-del-split" data-a="del-split" data-i18n="toolbar.deleteSplitPoint" data-i18n-title="tooltip.deleteSplitPoint">Delete split point</button>`;
         this.mainBody.appendChild(splitEditBar);
         this.splitEditBarEl = splitEditBar;
         this.splitEditHintEl = splitEditBar.querySelector('[data-r="split-edit-hint"]');
@@ -2991,7 +2991,7 @@ class MiniMaxH3DirectorEditor {
                     <span data-i18n="output.continuityKeepTail">保完整</span>
                 </label>
             </span>
-            <button type="button" class="bd-btn bd-btn-live-preview" data-a="live-tae-preview" data-i18n="toolbar.liveTaePreview" data-i18n-title="tooltip.liveTaePreview">实时预览</button>`;
+            <button type="button" class="bd-btn bd-btn-live-preview" data-a="live-tae-preview" data-i18n="toolbar.liveTaePreview" data-i18n-title="tooltip.liveTaePreview">Live preview</button>`;
         this.mainBody.appendChild(outputBar);
         this.outputBarEl = outputBar;
 

@@ -1,0 +1,5 @@
+# Legacy Director modules use CRLF; do not report the carriage return as trailing whitespace.
+director/plan.py whitespace=cr-at-eol
+director/progress.py whitespace=cr-at-eol
+director/audio_export.py whitespace=cr-at-eol
+director/segment_runtime.py whitespace=cr-at-eol

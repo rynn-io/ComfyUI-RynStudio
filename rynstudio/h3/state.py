@@ -110,21 +110,28 @@ def _validate_settings(settings: dict[str, Any], path: str) -> None:
     _validate_loras(settings, path)
 
 
-def _validate_references(segment: dict[str, Any], path: str, assets: dict[str, dict[str, Any]]) -> None:
-    refs = _mapping(segment.get("references"), f"{path}.references")
+def _validate_references(
+    segment: dict[str, Any],
+    path: str,
+    assets: dict[str, dict[str, Any]],
+    *,
+    direct: bool = False,
+) -> None:
+    references_path = path if direct else f"{path}.references"
+    refs = _mapping(segment if direct else segment.get("references"), references_path)
     for media_type, limit in _REFERENCE_LIMITS.items():
-        entries = _list(refs.get(media_type, []), f"{path}.references.{media_type}")
+        entries = _list(refs.get(media_type, []), f"{references_path}.{media_type}")
         if len(entries) > limit:
-            raise StateValidationError(f"{path}.references.{media_type} allows at most {limit}")
+            raise StateValidationError(f"{references_path}.{media_type} allows at most {limit}")
         slots: set[int] = set()
         for index, raw in enumerate(entries):
-            ref_path = f"{path}.references.{media_type}[{index}]"
+            ref_path = f"{references_path}.{media_type}[{index}]"
             ref = _mapping(raw, ref_path)
             slot = ref.get("slot")
             if isinstance(slot, bool) or not isinstance(slot, int) or not 1 <= slot <= limit:
                 raise StateValidationError(f"{ref_path}.slot must be between 1 and {limit}")
             if slot in slots:
-                raise StateValidationError(f"duplicate slot {slot} in {path}.references.{media_type}")
+                raise StateValidationError(f"duplicate slot {slot} in {references_path}.{media_type}")
             slots.add(slot)
             asset_id = _nonempty_string(ref.get("assetId"), f"{ref_path}.assetId")
             asset = assets.get(asset_id)
@@ -169,6 +176,14 @@ def validate_project(raw: Any) -> dict[str, Any]:
         scene = _mapping(scene_raw, scene_path)
         _nonempty_string(scene.get("name"), f"{scene_path}.name")
         _validate_settings(_mapping(scene.get("settings"), f"{scene_path}.settings"), f"{scene_path}.settings")
+        shared_references = scene.get("sharedReferences")
+        if shared_references is not None:
+            _validate_references(
+                shared_references,
+                f"{scene_path}.sharedReferences",
+                assets,
+                direct=True,
+            )
         segments = _list(scene.get("segments"), f"{scene_path}.segments")
         _unique_ids(segments, f"{scene_path}.segments")
         if not segments:
@@ -210,6 +225,9 @@ def validate_scene_asset_files(
         raise StateValidationError(f"unknown scene {scene_id!r}")
     assets = {item["id"]: item for item in document["assets"]}
     assigned_ids: list[str] = []
+    shared = scene.get("sharedReferences") or {}
+    for media_type in ("images", "videos", "audio"):
+        assigned_ids.extend(ref["assetId"] for ref in shared.get(media_type, []))
     for segment in scene["segments"]:
         refs = segment["references"]
         for media_type in ("images", "videos", "audio"):

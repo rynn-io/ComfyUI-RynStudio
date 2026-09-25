@@ -88,7 +88,7 @@ def _normalize_audio(audio: dict[str, Any] | None) -> dict[str, Any] | None:
             wave = wave[:, :2, :]
         return {"waveform": wave.contiguous(), "sample_rate": sr}
     except Exception as exc:
-        log.warning("参考音频归一化到 44.1k 立体声失败（%s）；按原始格式 mux。", exc)
+        log.warning("Failed to normalize reference audio to 44.1 kHz stereo (%s); muxing its original format.", exc)
         return audio
 
 
@@ -471,7 +471,7 @@ def build_director_audio_outputs(
                 )
                 # Soft fallback: silent only (do not substitute model audio).
                 log.warning(
-                    "声音=使用原声，但片段 #%s 无源音轨（%s）；已回退为静音。",
+                    "Source audio requested, but segment #%s has no source track (%s); using silence.",
                     seg.index + 1, hint,
                 )
                 extracted = None
@@ -513,7 +513,7 @@ def build_director_audio_outputs(
         hint = diagnose_source_audio_failure(timeline, 0, end, fps)
         # Soft fallback after a successful video run: silent only (no model audio).
         log.warning(
-            "声音=使用原声，但源视频无音轨（%s）；已回退为静音。",
+            "Source audio requested, but the source video has no audio track (%s); using silence.",
             hint,
         )
         extracted = None

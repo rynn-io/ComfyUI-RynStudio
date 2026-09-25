@@ -39,7 +39,7 @@ def timeline_required_inputs() -> dict:
                 "tooltip": "Synced from in-node UI (global mode).",
             },
         ),
-        "bd_grp_sample": ("BDGROUP", {"default": "采样设置"}),
+        "bd_grp_sample": ("BDGROUP", {"default": "Sampling settings"}),
         "cfg": (
             "FLOAT",
             {"default": 1.0, "min": 0.0, "max": 30.0, "step": 0.01, "tooltip": "CFG for KSampler."},
@@ -80,12 +80,12 @@ def timeline_required_inputs() -> dict:
 def director_perf_inputs() -> dict:
     """Performance widgets shared by Director nodes."""
     return {
-        "bd_grp_perf": ("BDGROUP", {"default": "性能"}),
+        "bd_grp_perf": ("BDGROUP", {"default": "Performance"}),
         "clear_vram_between_segments": (
             "BOOLEAN",
             {
                 "default": True,
-                "tooltip": "段间清理显存：每段结束后卸载模型并清空 CUDA 缓存。",
+                "tooltip": "Unload models and clear the CUDA cache after each segment.",
             },
         ),
         "clear_vram_before_refine": (
@@ -93,9 +93,8 @@ def director_perf_inputs() -> dict:
             {
                 "default": False,
                 "tooltip": (
-                    "二采前清理显存：一采结束后、放大或二采开始前卸载模型并清空 CUDA 缓存。"
-                    "默认关。24GB 或一采/二采不同 UNET 时勾上，可降低二采峰值，"
-                    "但每段会多一次加载。"
+                    "Unload models and clear the CUDA cache after the first pass, before upscale or refine. "
+                    "Disabled by default. This can reduce second-pass peak VRAM at the cost of one extra load per segment."
                 ),
             },
         ),
@@ -104,9 +103,8 @@ def director_perf_inputs() -> dict:
             {
                 "default": False,
                 "tooltip": (
-                    "脸修前清理显存：成片解码后、FaceRefine 开始前卸载模型并清空 CUDA 缓存。"
-                    "默认关。未接 FaceRefine 时无效。24GB 或解码后立刻 OOM 时勾上，"
-                    "但每段会多一次加载。"
+                    "Unload models and clear the CUDA cache after decode and before FaceRefine. "
+                    "Disabled by default and ignored when FaceRefine is not connected."
                 ),
             },
         ),
@@ -115,9 +113,8 @@ def director_perf_inputs() -> dict:
             {
                 "default": False,
                 "tooltip": (
-                    "将时间轴原片解码到独立的 source_images 输出口；"
-                    "需将 source_images 另接预览/合成节点才能查看，不会改变主 images。"
-                    "默认关以节省内存。"
+                    "Decode source timeline frames to the separate source_images output. "
+                    "Connect that output to a preview or compositor to inspect it. Disabled by default to save memory."
                 ),
             },
         ),
@@ -126,9 +123,8 @@ def director_perf_inputs() -> dict:
             {
                 "default": False,
                 "tooltip": (
-                    "将修脸前的视频输出到 images_pre_face_refine，方便和 images 对比。"
-                    "分段导出时同时写入 seg_XXXX_facepre.mp4。"
-                    "默认关：该口阻断、下游不执行，也不占成片内存。未接 FaceRefine 时无效。"
+                    "Expose frames before FaceRefine for comparison and write seg_XXXX_facepre.mp4 in segmented export mode. "
+                    "Disabled by default and ignored when FaceRefine is not connected."
                 ),
             },
         ),
@@ -571,12 +567,12 @@ def finalize_director_outputs(
         if face_refine_enabled(plan) and block_final_images:
             report = report + (
                 "\n\nimages_pre_face_refine: blocked "
-                "（本轮仅确认一采，脸部精修会在二采完成后执行）。"
+                "(this run only confirmed the first pass; face refinement runs after the second pass)."
             )
         elif face_refine_enabled(plan) and not export_pre_face_refine:
             report = report + (
                 "\n\nimages_pre_face_refine: blocked "
-                "（未勾选「输出修脸前」，该口无画面、下游不执行）。"
+                "(pre-FaceRefine output is disabled)."
             )
         else:
             report = report + (
@@ -586,7 +582,7 @@ def finalize_director_outputs(
         pre_face_out = _ensure_nonempty_image_batches(pre_face_out, label="images_pre_face_refine")
         report = report + (
             "\n\nimages_pre_face_refine: video immediately before face stitch "
-            "(对比口；images 为修脸后)。"
+            "(the images output contains the post-FaceRefine result)."
         )
 
     refine_pack = getattr(plan, "refine", None)
@@ -600,13 +596,11 @@ def finalize_director_outputs(
             "\n\nimages_pre_refine: same as images (Refine node not connected)."
         )
 
-    report = report + "\n\n有问题联系作者：AI搅拌手  QQ交流群：551482703"
-
     fps_out = float(plan.frame_rate or 24.0)
     if block_final_images:
         report = report + (
-            "\n\n本轮仅确认一采：images（最终/二采输出）已阻断，"
-            "请从 images_pre_refine 查看或保存一采；再次 Queue 完成二采后 images 才会输出。"
+            "\n\nThis run only confirmed the first pass. The final images output is blocked; "
+            "queue again with the same seed to complete the second pass."
         )
         images_out = ExecutionBlocker(None)
     return images_out, audio_out, fps_out, frame_count, source_images_out, report, pre_refine_out, pre_face_out

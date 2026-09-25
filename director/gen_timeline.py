@@ -394,7 +394,7 @@ def build_gen_director_plan(
     elif edit_mode not in ("global", "segment"):
         edit_mode = "global"
 
-    task_type = global_block.get("taskType") or global_task_type or "t2v 鈥?鏂囩敓瑙嗛(Text to Video)"
+    task_type = global_block.get("taskType") or global_task_type or "t2v — Text to Video"
     task_key = resolve_task_key(task_type)
     if not is_gen_task_key(task_key):
         raise ValueError(f"Task {task_key} is not supported on the generation timeline.")
@@ -402,7 +402,7 @@ def build_gen_director_plan(
     submode = gen_submode(timeline, task_key)
     prompt = global_block.get("prompt") or global_prompt or ""
     global_refs = _load_refs(global_block.get("refs") or [])
-    # r2v/r2i shared「公共参数」: off unless timeline.global.commonEnabled is set.
+    # R2V/R2I shared parameters: off unless timeline.global.commonEnabled is set.
     common_enabled = bool(
         global_block.get("commonEnabled")
         if global_block.get("commonEnabled") is not None
@@ -608,7 +608,7 @@ def build_gen_director_plan(
         if seg_task_key in ("r2v", "r2i") and not seg_refs and not seg_ref_videos and not seg_ref_audios:
             log.warning(
                 "gen segment #%d task=%s has no reference media — will behave like "
-                "t2v/t2i. Upload shared「公共参数」and/or per-group 图片/音频/视频.",
+                "t2v/t2i. Add shared media or assign image, audio, or video media to this segment.",
                 idx + 1,
                 seg_task_key,
             )

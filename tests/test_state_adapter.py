@@ -98,6 +98,23 @@ def test_valid_state_adapts_to_explicit_r2v_timeline_without_inheritance():
     assert adapted.segment_ids == ("segment-1", "segment-2")
 
 
+def test_shared_references_compile_to_enabled_global_r2v_media():
+    state = project_state()
+    state["scenes"][0]["sharedReferences"] = {
+        "images": [{"slot": 1, "assetId": "character"}],
+        "videos": [],
+        "audio": [],
+    }
+    state["scenes"][0]["segments"][0]["references"]["images"] = []
+    state["scenes"][0]["segments"][1]["references"]["images"] = []
+
+    adapted = adapt_scene_to_timeline(validate_project(state), scene_id="scene-1")
+
+    assert adapted.timeline["global"]["commonEnabled"] is True
+    assert adapted.timeline["global"]["refs"][0]["imageFile"] == "ryn-golden/character.png"
+    assert adapted.timeline["global"]["refs"][0]["index"] == 0
+
+
 def test_live_preview_is_transient_adapter_state():
     state = validate_project(project_state())
     adapted = adapt_scene_to_timeline(state, scene_id="scene-1", live_preview=True)
@@ -196,3 +213,17 @@ def test_selected_scene_fails_before_sampling_when_assigned_asset_is_missing(tmp
     with pytest.raises(StateValidationError, match="room.png") as raised:
         validate_scene_asset_files(document, scene_id="scene-1", input_directory=tmp_path)
     assert str(expected) in str(raised.value)
+
+
+def test_selected_scene_preflight_checks_shared_reference_files(tmp_path):
+    state = project_state()
+    for segment in state["scenes"][0]["segments"]:
+        segment["references"] = {"images": [], "videos": [], "audio": []}
+    state["scenes"][0]["sharedReferences"] = {
+        "images": [{"slot": 1, "assetId": "character"}],
+        "videos": [],
+        "audio": [],
+    }
+    document = validate_project(state)
+    with pytest.raises(StateValidationError, match="character.png"):
+        validate_scene_asset_files(document, scene_id="scene-1", input_directory=tmp_path)

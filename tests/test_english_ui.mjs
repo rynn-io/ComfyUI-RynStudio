@@ -8,6 +8,10 @@ const timelineSource = await readFile(
     new URL("../web/js/minimax_timeline.js", import.meta.url),
     "utf8",
 );
+const rynBridgeSource = await readFile(
+    new URL("../web/js/ryn_state_bridge.js", import.meta.url),
+    "utf8",
+);
 
 test("Director UI translations are English-only", () => {
     assert.equal(i18n.t("toolbar.addRefGroup"), "Add asset group");
@@ -20,4 +24,13 @@ test("Director UI translations are English-only", () => {
 test("Director toolbar does not expose a language toggle", () => {
     assert.doesNotMatch(timelineSource, /data-a=["']lang-toggle["']/);
     assert.doesNotMatch(timelineSource, /toggleLocale/);
+});
+
+test("Ryn renders custom resource and settings panels", () => {
+    assert.match(rynBridgeSource, /Shared assets/);
+    assert.match(rynBridgeSource, /Use in all segments/);
+    assert.match(rynBridgeSource, /MODEL LoRAs/);
+    assert.match(rynBridgeSource, /data-ryn-settings/);
+    assert.match(rynBridgeSource, /Advanced sampling/);
+    assert.match(rynBridgeSource, /Performance/);
 });

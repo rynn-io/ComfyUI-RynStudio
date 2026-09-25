@@ -69,12 +69,12 @@ def segment_mp4_path(run_dir: Path, seg: SegmentPlan, *, suffix: str = "") -> Pa
 def mp4_export_kind(path: str | None) -> str:
     name = Path(str(path or "")).name
     if name.endswith("_facepre.mp4"):
-        return "修脸前 mp4"
+        return "pre-FaceRefine mp4"
     if name.endswith("_pre.mp4"):
-        return "一采 mp4"
+        return "first-pass mp4"
     m = re.search(r"_p(\d+)\.mp4$", name)
     if m:
-        return f"第{m.group(1)}轮精修 mp4"
+        return f"refine pass {m.group(1)} mp4"
     return "mp4"
 
 

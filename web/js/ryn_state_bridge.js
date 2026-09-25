@@ -44,9 +44,9 @@ function parseJson(value, fallback = null) {
 
 export function mediaPickerKey(picked, kind) {
     if (!picked || typeof picked !== "object") return "";
-    return String(kind === "image"
-        ? (picked.imageFile || picked.relPath || "")
-        : (picked.videoFile || picked.relPath || ""));
+    if (kind === "image") return String(picked.imageFile || picked.relPath || "");
+    if (kind === "audio") return String(picked.audioFile || picked.relPath || "");
+    return String(picked.videoFile || picked.relPath || "");
 }
 
 function assetMeta(asset, index) {
@@ -67,6 +67,10 @@ export function rynStateToTimeline(document, sceneId = "") {
     const assets = new Map((document.assets || []).map((asset) => [asset.id, asset]));
     const settings = scene.settings || {};
     const continuity = settings.continuityDefaults || {};
+    const shared = scene.sharedReferences || { images: [], videos: [], audio: [] };
+    const sharedImages = (shared.images || []).map((ref) => assetMeta(assets.get(ref.assetId), Number(ref.slot) - 1));
+    const sharedVideos = (shared.videos || []).map((ref) => assetMeta(assets.get(ref.assetId), Number(ref.slot) - 1));
+    const sharedAudio = (shared.audio || []).map((ref) => assetMeta(assets.get(ref.assetId), Number(ref.slot) - 1));
     let start = 0;
     const segments = (scene.segments || []).map((segment) => {
         const count = Number(segment.frameCount || 124);
@@ -99,7 +103,15 @@ export function rynStateToTimeline(document, sceneId = "") {
         width: Number(settings.width || 864),
         height: Number(settings.height || 480),
         refMaxSize: Math.max(Number(settings.width || 864), Number(settings.height || 480)),
-        global: { taskType: "r2v — Reference to Video", prompt: "", commonEnabled: false, refs: [], refVideos: [], refAudios: [], continuousReference: false },
+        global: {
+            taskType: "r2v — Reference to Video",
+            prompt: "",
+            commonEnabled: !!(sharedImages.length || sharedVideos.length || sharedAudio.length),
+            refs: sharedImages,
+            refVideos: sharedVideos,
+            refAudios: sharedAudio,
+            continuousReference: false,
+        },
         output: {
             mode: "fixed", width: Number(settings.width || 864), height: Number(settings.height || 480),
             longEdge: Math.max(Number(settings.width || 864), Number(settings.height || 480)),
@@ -142,6 +154,10 @@ function collectAssets(previous, timeline) {
         }
         return asset.id;
     };
+    const global = timeline.global || {};
+    for (const ref of global.refs || []) register("image", ref);
+    for (const ref of global.refVideos || []) register("video", ref);
+    for (const ref of global.refAudios || []) register("audio", ref);
     for (const segment of timeline.segments || []) {
         for (const ref of segment.refs || []) register("image", ref);
         for (const ref of segment.refVideos || []) register("video", ref);
@@ -181,6 +197,11 @@ export function timelineToRynState(editor, timeline) {
     const updatedScene = {
         id: sceneId,
         name: previousScene.name || "Scene 1",
+        sharedReferences: {
+            images: (timeline.global?.refs || []).map((ref) => ({ slot: Number(ref.index ?? ref.slot ?? 0) + 1, assetId: register("image", ref) })).filter((ref) => ref.assetId),
+            videos: (timeline.global?.refVideos || []).map((ref) => ({ slot: Number(ref.index ?? ref.slot ?? 0) + 1, assetId: register("video", ref) })).filter((ref) => ref.assetId),
+            audio: (timeline.global?.refAudios || []).map((ref) => ({ slot: Number(ref.index ?? ref.slot ?? 0) + 1, assetId: register("audio", ref) })).filter((ref) => ref.assetId),
+        },
         settings: {
             frameRate: Number(timeline.frameRate || valueOf("frame_rate", 24)),
             width: Number(timeline.width || output.width || valueOf("width", 864)),
@@ -267,98 +288,331 @@ function nextSlot(list, limit) {
     return -1;
 }
 
-function assignAsset(editor, asset) {
-    const segment = editor.timeline?.segments?.[editor.selectedIndex || 0];
-    if (!segment) return;
+export function assignAsset(editor, asset, target = "segment") {
+    const holder = target === "shared"
+        ? editor.timeline?.global
+        : editor.timeline?.segments?.[editor.selectedIndex || 0];
+    if (!holder) return false;
     const map = assetMeta(asset, 0);
     if (asset.kind === "image") {
-        const slot = nextSlot(segment.refs, 9); if (slot < 0) return;
-        segment.refs = [...(segment.refs || []), { ...map, index: slot }];
+        if ((holder.refs || []).some((ref) => refKey("image", ref) === refKey("image", map))) return false;
+        const slot = nextSlot(holder.refs, 9); if (slot < 0) return false;
+        holder.refs = [...(holder.refs || []), { ...map, index: slot }];
     } else if (asset.kind === "video") {
-        const slot = nextSlot(segment.refVideos, 3); if (slot < 0) return;
-        segment.refVideos = [...(segment.refVideos || []), { ...map, index: slot }];
+        if ((holder.refVideos || []).some((ref) => refKey("video", ref) === refKey("video", map))) return false;
+        const slot = nextSlot(holder.refVideos, 3); if (slot < 0) return false;
+        holder.refVideos = [...(holder.refVideos || []), { ...map, index: slot }];
     } else {
-        const slot = nextSlot(segment.refAudios, 3); if (slot < 0) return;
-        segment.refAudios = [...(segment.refAudios || []), { ...map, index: slot }];
+        if ((holder.refAudios || []).some((ref) => refKey("audio", ref) === refKey("audio", map))) return false;
+        const slot = nextSlot(holder.refAudios, 3); if (slot < 0) return false;
+        holder.refAudios = [...(holder.refAudios || []), { ...map, index: slot }];
     }
+    if (target === "shared") holder.commonEnabled = true;
     editor.render?.();
     editor.commit?.();
+    return true;
+}
+
+function hideNativeWidget(target) {
+    if (!target) return;
+    target.hidden = true;
+    target.options = { ...(target.options || {}), hidden: true };
+    target.computeSize = () => [0, 0];
+    if (target.element) target.element.style.display = "none";
+}
+
+function removeAssetAssignment(editor, asset, target) {
+    const holder = target === "shared"
+        ? editor.timeline?.global
+        : editor.timeline?.segments?.[editor.selectedIndex || 0];
+    if (!holder) return;
+    const key = String(asset?.storage?.key || "").replaceAll("\\", "/");
+    const remove = (kind, refs) => (refs || []).filter((ref) => refKey(kind, ref) !== key);
+    holder.refs = remove("image", holder.refs);
+    holder.refVideos = remove("video", holder.refVideos);
+    holder.refAudios = remove("audio", holder.refAudios);
+    if (target === "shared") {
+        holder.commonEnabled = !!(holder.refs.length || holder.refVideos.length || holder.refAudios.length);
+    }
+    editor.renderImageBatchGroups?.();
+    editor.commit?.();
+}
+
+function assetIsAssigned(editor, asset, target) {
+    const holder = target === "shared"
+        ? editor.timeline?.global
+        : editor.timeline?.segments?.[editor.selectedIndex || 0];
+    if (!holder) return false;
+    const key = String(asset?.storage?.key || "").replaceAll("\\", "/");
+    return (holder.refs || []).some((ref) => refKey("image", ref) === key)
+        || (holder.refVideos || []).some((ref) => refKey("video", ref) === key)
+        || (holder.refAudios || []).some((ref) => refKey("audio", ref) === key);
+}
+
+function mediaPreviewUrl(asset) {
+    if (asset?.kind !== "image") return "";
+    const key = String(asset.storage?.key || "").replaceAll("\\", "/");
+    const parts = key.split("/");
+    const filename = parts.pop() || "";
+    const params = new URLSearchParams({ filename, subfolder: parts.join("/"), type: "input" });
+    return `/view?${params}`;
+}
+
+function mountRynSettings(editor) {
+    const panel = document.createElement("section");
+    panel.className = "ryn-settings";
+    panel.setAttribute("data-ryn-settings", "");
+    panel.innerHTML = `<div class="ryn-panel-heading"><div><b>Generation settings</b><span>Controls are saved with this Director node.</span></div></div>`;
+
+    const definitions = [
+        {
+            title: "Sampling settings", open: true,
+            fields: [
+                ["seed", "Seed"],
+                ["control_after_generate", "After generation"],
+                ["live_preview", "Live preview"],
+            ],
+        },
+        {
+            title: "Advanced sampling", open: false,
+            fields: [
+                ["steps", "Steps"], ["sampler", "Sampler"], ["scheduler", "Scheduler"],
+                ["shift_video", "Video shift"], ["shift_audio", "Audio shift"],
+            ],
+        },
+        {
+            title: "Performance", open: false,
+            fields: [
+                ["clear_vram_between_segments", "Clear VRAM between segments"],
+                ["export_source_images", "Export source images"],
+                ["low_vram_attention", "Low-VRAM attention"],
+                ["attention_head_chunks", "Attention head chunks", "low_vram_attention"],
+                ["chunk_feed_forward", "Chunk feed-forward"],
+                ["feed_forward_chunks", "Feed-forward chunks", "chunk_feed_forward"],
+                ["feed_forward_sequence_threshold", "Sequence threshold", "chunk_feed_forward"],
+                ["fp16_accumulation", "FP16 accumulation"],
+                ["comfy_kitchen_attention", "Comfy Kitchen INT8 attention"],
+            ],
+        },
+    ];
+
+    const controls = new Map();
+    const refreshDependencies = () => {
+        for (const [name, record] of controls) {
+            if (!record.parent) continue;
+            const parentWidget = widget(editor.node, record.parent);
+            record.row.classList.toggle("ryn-dependent-hidden", !parentWidget?.value);
+        }
+    };
+
+    for (const section of definitions) {
+        const details = document.createElement("details");
+        details.className = "ryn-settings-group";
+        details.open = section.open;
+        details.innerHTML = `<summary>${section.title}</summary><div class="ryn-settings-grid"></div>`;
+        const grid = details.querySelector(".ryn-settings-grid");
+        for (const [name, label, parent] of section.fields) {
+            const sourceWidget = widget(editor.node, name);
+            if (!sourceWidget) continue;
+            hideNativeWidget(sourceWidget);
+            const row = document.createElement("label");
+            row.className = "ryn-setting-row";
+            const caption = document.createElement("span");
+            caption.textContent = label;
+            row.append(caption);
+            const values = sourceWidget.options?.values;
+            let input;
+            if (Array.isArray(values)) {
+                input = document.createElement("select");
+                for (const value of values) {
+                    const option = document.createElement("option");
+                    option.value = String(value);
+                    option.textContent = String(value);
+                    input.append(option);
+                }
+                input.value = String(sourceWidget.value ?? "");
+            } else if (typeof sourceWidget.value === "boolean") {
+                input = document.createElement("input");
+                input.type = "checkbox";
+                input.checked = !!sourceWidget.value;
+            } else {
+                input = document.createElement("input");
+                input.type = typeof sourceWidget.value === "number" ? "number" : "text";
+                if (sourceWidget.options?.min != null) input.min = sourceWidget.options.min;
+                if (sourceWidget.options?.max != null) input.max = sourceWidget.options.max;
+                if (sourceWidget.options?.step != null) input.step = sourceWidget.options.step;
+                input.value = String(sourceWidget.value ?? "");
+            }
+            input.dataset.widget = name;
+            input.onchange = () => {
+                const next = input.type === "checkbox"
+                    ? input.checked
+                    : input.type === "number" ? Number(input.value) : input.value;
+                sourceWidget.value = next;
+                sourceWidget.callback?.(next);
+                editor.node?.setDirtyCanvas?.(true, true);
+                syncRynStateWidgets(editor, editor.timeline);
+                refreshDependencies();
+            };
+            row.append(input);
+            grid.append(row);
+            controls.set(name, { row, parent });
+        }
+        panel.append(details);
+    }
+    for (const name of ["bd_grp_sample", "bd_grp_advanced", "bd_grp_perf"]) hideNativeWidget(widget(editor.node, name));
+    refreshDependencies();
+    return panel;
 }
 
 export function mountRynControls(editor) {
     if (!isRynDirectorNode(editor.node) || !editor.root || editor._rynControlsMounted) return;
     editor._rynControlsMounted = true;
-    const panel = document.createElement("details");
-    panel.className = "bd-section";
-    panel.open = true;
-    panel.innerHTML = `<summary>Ryn shared asset pool & MODEL LoRAs</summary><div data-ryn-assets></div><div class="bd-row"><button data-add-image>Add existing image</button><button data-add-video>Add existing video</button></div><div data-ryn-loras></div><button data-add-lora>Add MODEL LoRA</button>`;
-    editor.root.prepend(panel);
+
+    const style = document.createElement("style");
+    style.textContent = `
+.ryn-workspace{display:grid;gap:10px;margin:0 0 10px}.ryn-resource-panel,.ryn-settings{border:1px solid var(--border,#454545);border-radius:10px;background:var(--card,#242424);padding:10px;box-sizing:border-box}.ryn-panel-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:9px}.ryn-panel-heading>div{display:grid;gap:2px}.ryn-panel-heading span,.ryn-empty,.ryn-asset-meta{font-size:11px;color:var(--muted-foreground,#aaa)}.ryn-resource-columns{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(260px,.65fr);gap:10px}.ryn-resource-card{border:1px solid var(--border,#454545);border-radius:8px;padding:9px;background:rgba(0,0,0,.12)}.ryn-resource-title{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px}.ryn-actions{display:flex;gap:6px;flex-wrap:wrap}.ryn-actions button,.ryn-asset-actions button,.ryn-lora-actions button{border:1px solid var(--border,#555);border-radius:6px;padding:5px 8px;background:var(--card,#303030);color:var(--foreground,#eee);cursor:pointer}.ryn-actions button:hover,.ryn-asset-actions button:hover,.ryn-lora-actions button:hover{border-color:var(--accent,#4fff8f)}.ryn-asset-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:7px}.ryn-asset{display:grid;grid-template-columns:48px minmax(0,1fr);gap:8px;padding:7px;border:1px solid var(--border,#444);border-radius:7px}.ryn-asset-preview{width:48px;height:48px;border-radius:6px;object-fit:cover;background:rgba(0,0,0,.25);display:grid;place-items:center;font-size:20px}.ryn-asset-name{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ryn-kind{font-size:10px;text-transform:uppercase;color:var(--accent,#4fff8f)}.ryn-asset-actions{grid-column:1/-1;display:flex;gap:5px;flex-wrap:wrap}.ryn-asset-actions button.active{border-color:var(--accent,#4fff8f);color:var(--accent,#4fff8f)}.ryn-lora-list{display:grid;gap:7px}.ryn-lora{display:grid;grid-template-columns:minmax(110px,1fr) 78px auto;gap:6px;align-items:center}.ryn-lora input[type=text],.ryn-lora input[type=number],.ryn-setting-row input,.ryn-setting-row select{min-width:0;width:100%;box-sizing:border-box;border:1px solid var(--border,#555);border-radius:6px;padding:5px 7px;background:rgba(0,0,0,.2);color:var(--foreground,#eee)}.ryn-lora-actions{grid-column:1/-1;display:flex;gap:5px}.ryn-settings{display:grid;gap:7px}.ryn-settings-group{border:1px solid var(--border,#444);border-radius:8px;padding:0 9px}.ryn-settings-group summary{cursor:pointer;padding:8px 0;font-weight:650}.ryn-settings-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:7px;padding:0 0 9px}.ryn-setting-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(90px,.8fr);align-items:center;gap:8px;padding:6px 7px;border-radius:7px;background:rgba(0,0,0,.12);font-size:11px}.ryn-setting-row input[type=checkbox]{justify-self:end;width:17px;height:17px;accent-color:var(--accent,#4fff8f)}.ryn-dependent-hidden{display:none!important}@media(max-width:760px){.ryn-resource-columns{grid-template-columns:1fr}.ryn-settings-grid{grid-template-columns:1fr}}`;
+
+    const workspace = document.createElement("div");
+    workspace.className = "ryn-workspace";
+    workspace.append(style);
+
+    const panel = document.createElement("section");
+    panel.className = "ryn-resource-panel";
+    panel.innerHTML = `<div class="ryn-panel-heading"><div><b>Project resources</b><span>Reuse media across the whole scene or assign it only to the selected segment.</span></div></div><div class="ryn-resource-columns"><div class="ryn-resource-card"><div class="ryn-resource-title"><b>Shared assets</b><div class="ryn-actions"><button data-add-image>+ Image</button><button data-add-video>+ Video</button><button data-add-audio>+ Audio</button></div></div><div class="ryn-asset-grid" data-ryn-assets></div></div><div class="ryn-resource-card"><div class="ryn-resource-title"><b>MODEL LoRAs</b><button data-add-lora>+ Add</button></div><div class="ryn-lora-list" data-ryn-loras></div></div></div>`;
+    workspace.append(panel, mountRynSettings(editor));
+    editor.root.prepend(workspace);
+
     if (editor.globalTask) {
         const r2vOption = [...editor.globalTask.options].find((option) => String(option.value).toLowerCase().startsWith("r2v"));
         if (r2vOption) editor.globalTask.value = r2vOption.value;
         editor.globalTask.disabled = true;
-        editor.globalTask.title = "Ryn H3 Director 0.1 is R2V-only";
+        editor.globalTask.title = "Ryn H3 Director is R2V-only";
     }
-    if (editor.timeline?.global) {
-        editor.timeline.global.commonEnabled = false;
-        editor.timeline.global.refs = [];
-        editor.timeline.global.refVideos = [];
-        editor.timeline.global.refAudios = [];
-    }
+
+    const currentScene = (documentState) => {
+        const activeSceneId = String(widget(editor.node, "scene_id")?.value || documentState.scenes[0]?.id || "");
+        return documentState.scenes.find((item) => item.id === activeSceneId) || documentState.scenes[0];
+    };
+    const saveStack = (documentState, scene, stack) => {
+        const current = parseJson(widget(editor.node, "ryn_state")?.value, documentState);
+        const target = current.scenes.find((item) => item.id === scene.id) || current.scenes[0];
+        target.settings.loraStack = stack.map((entry, order) => ({ ...entry, order }));
+        widget(editor.node, "ryn_state").value = JSON.stringify(current);
+    };
     const render = () => {
         const documentState = timelineToRynState(editor, editor.timeline);
-        const activeSceneId = String(widget(editor.node, "scene_id")?.value || documentState.scenes[0]?.id || "");
-        const scene = documentState.scenes.find((item) => item.id === activeSceneId) || documentState.scenes[0];
+        const scene = currentScene(documentState);
         const assetBox = panel.querySelector("[data-ryn-assets]");
-        assetBox.innerHTML = documentState.assets.length ? "" : `<div class="bd-muted">No shared assets yet. Segment uploads are registered automatically.</div>`;
+        assetBox.replaceChildren();
+        if (!documentState.assets.length) {
+            const empty = document.createElement("div");
+            empty.className = "ryn-empty";
+            empty.textContent = "No assets yet. Add existing ComfyUI input media to reuse it here.";
+            assetBox.append(empty);
+        }
         for (const asset of documentState.assets) {
-            const row = document.createElement("div"); row.className = "bd-row";
-            row.innerHTML = `<span>${asset.kind}: ${asset.name}</span><button>Assign to selected segment</button>`;
-            row.querySelector("button").onclick = () => assignAsset(editor, asset);
-            assetBox.append(row);
-        }
-        const loraBox = panel.querySelector("[data-ryn-loras]"); loraBox.innerHTML = "";
-        for (const entry of scene.settings.loraStack) {
-            const row = document.createElement("div"); row.className = "bd-row";
-            row.innerHTML = `<input data-file placeholder="LoRA filename" value="${String(entry.filename || "").replaceAll('"', '&quot;')}"><input data-strength type="number" step="0.05" value="${entry.strength}"><label><input data-enabled type="checkbox" ${entry.enabled ? "checked" : ""}> enabled</label><button>Remove</button>`;
-            const save = () => {
-                entry.filename = row.querySelector("[data-file]").value;
-                entry.strength = Number(row.querySelector("[data-strength]").value || 0);
-                entry.enabled = row.querySelector("[data-enabled]").checked;
+            const card = document.createElement("article");
+            card.className = "ryn-asset";
+            const previewUrl = mediaPreviewUrl(asset);
+            const preview = previewUrl ? document.createElement("img") : document.createElement("div");
+            preview.className = "ryn-asset-preview";
+            if (previewUrl) { preview.src = previewUrl; preview.alt = ""; }
+            else preview.textContent = asset.kind === "video" ? "▶" : asset.kind === "audio" ? "♪" : "▧";
+            const info = document.createElement("div");
+            const name = document.createElement("div"); name.className = "ryn-asset-name"; name.textContent = asset.name;
+            const kind = document.createElement("div"); kind.className = "ryn-kind"; kind.textContent = asset.kind;
+            info.append(name, kind);
+            const actions = document.createElement("div"); actions.className = "ryn-asset-actions";
+            const sharedOn = assetIsAssigned(editor, asset, "shared");
+            const segmentOn = assetIsAssigned(editor, asset, "segment");
+            const sharedButton = document.createElement("button");
+            sharedButton.classList.toggle("active", sharedOn);
+            sharedButton.textContent = sharedOn ? "Remove from all segments" : "Use in all segments";
+            sharedButton.onclick = () => { sharedOn ? removeAssetAssignment(editor, asset, "shared") : assignAsset(editor, asset, "shared"); render(); };
+            const segmentButton = document.createElement("button");
+            segmentButton.classList.toggle("active", segmentOn);
+            segmentButton.textContent = segmentOn ? "Unassign selected segment" : "Assign to selected segment";
+            segmentButton.onclick = () => { segmentOn ? removeAssetAssignment(editor, asset, "segment") : assignAsset(editor, asset, "segment"); render(); };
+            const removeButton = document.createElement("button"); removeButton.textContent = "Remove asset";
+            removeButton.onclick = () => {
+                removeAssetAssignment(editor, asset, "shared");
+                for (let index = 0; index < (editor.timeline?.segments?.length || 0); index++) {
+                    const previous = editor.selectedIndex; editor.selectedIndex = index;
+                    removeAssetAssignment(editor, asset, "segment"); editor.selectedIndex = previous;
+                }
                 const current = parseJson(widget(editor.node, "ryn_state")?.value, documentState);
-                const target = current.scenes?.find((item) => item.id === scene.id) || current.scenes?.[0];
-                target.settings.loraStack = scene.settings.loraStack;
+                current.assets = (current.assets || []).filter((item) => item.id !== asset.id);
                 widget(editor.node, "ryn_state").value = JSON.stringify(current);
+                render();
             };
-            row.onchange = save;
-            row.querySelector("button").onclick = () => { scene.settings.loraStack = scene.settings.loraStack.filter((item) => item.id !== entry.id); const current = parseJson(widget(editor.node, "ryn_state")?.value, documentState); const target = current.scenes.find((item) => item.id === scene.id) || current.scenes[0]; target.settings.loraStack = scene.settings.loraStack.map((item, order) => ({ ...item, order })); widget(editor.node, "ryn_state").value = JSON.stringify(current); render(); };
-            loraBox.append(row);
+            actions.append(sharedButton, segmentButton, removeButton);
+            card.append(preview, info, actions);
+            assetBox.append(card);
         }
+
+        const loraBox = panel.querySelector("[data-ryn-loras]");
+        loraBox.replaceChildren();
+        const stack = scene.settings.loraStack;
+        if (!stack.length) {
+            const empty = document.createElement("div"); empty.className = "ryn-empty";
+            empty.textContent = "No MODEL LoRAs. LoRAs are applied in the displayed order.";
+            loraBox.append(empty);
+        }
+        stack.forEach((entry, index) => {
+            const row = document.createElement("div"); row.className = "ryn-lora";
+            const file = document.createElement("input"); file.type = "text"; file.placeholder = "LoRA filename"; file.value = entry.filename || "";
+            const strength = document.createElement("input"); strength.type = "number"; strength.step = "0.05"; strength.value = String(entry.strength ?? 1);
+            const enabled = document.createElement("label");
+            const check = document.createElement("input"); check.type = "checkbox"; check.checked = entry.enabled !== false;
+            enabled.append(check, document.createTextNode(" Enabled"));
+            const actions = document.createElement("div"); actions.className = "ryn-lora-actions";
+            for (const [label, delta] of [["Move up", -1], ["Move down", 1]]) {
+                const button = document.createElement("button"); button.textContent = label;
+                button.disabled = index + delta < 0 || index + delta >= stack.length;
+                button.onclick = () => { const next = index + delta; [stack[index], stack[next]] = [stack[next], stack[index]]; saveStack(documentState, scene, stack); render(); };
+                actions.append(button);
+            }
+            const remove = document.createElement("button"); remove.textContent = "Remove";
+            remove.onclick = () => { stack.splice(index, 1); saveStack(documentState, scene, stack); render(); };
+            actions.append(remove);
+            const save = () => { entry.filename = file.value; entry.strength = Number(strength.value || 0); entry.enabled = check.checked; saveStack(documentState, scene, stack); };
+            file.onchange = save; strength.onchange = save; check.onchange = save;
+            row.append(file, strength, enabled, actions);
+            loraBox.append(row);
+        });
         syncRynStateWidgets(editor, editor.timeline);
     };
-    panel.querySelector("[data-add-image]").onclick = async () => {
-        const picked = await editor.chooseImageInput?.({ title: "Add image to shared asset pool" });
-        const key = mediaPickerKey(picked, "image");
+
+    const addAsset = async (kind) => {
+        const picker = kind === "image" ? editor.chooseImageInput : kind === "video" ? editor.chooseVideoInput : editor.chooseAudioInput;
+        const picked = await picker?.call(editor, { title: `Add ${kind} to shared assets` });
+        const key = mediaPickerKey(picked, kind);
         if (!key) return;
         const current = timelineToRynState(editor, editor.timeline);
-        current.assets.push({ id: uid("asset"), kind: "image", name: picked.fileName || key.split("/").at(-1), storage: { scheme: "comfy-input", key }, contentHash: null, metadata: {} });
-        widget(editor.node, "ryn_state").value = JSON.stringify(current); render();
+        if (!(current.assets || []).some((asset) => asset.kind === kind && asset.storage?.key === key)) {
+            current.assets.push({ id: uid("asset"), kind, name: picked.fileName || key.split("/").at(-1), storage: { scheme: "comfy-input", key }, contentHash: null, metadata: {} });
+            widget(editor.node, "ryn_state").value = JSON.stringify(current);
+        }
+        render();
     };
-    panel.querySelector("[data-add-video]").onclick = async () => {
-        const picked = await editor.chooseVideoInput?.({ title: "Add video to shared asset pool" });
-        const key = mediaPickerKey(picked, "video");
-        if (!key) return;
-        const current = timelineToRynState(editor, editor.timeline);
-        current.assets.push({ id: uid("asset"), kind: "video", name: picked.fileName || key.split("/").at(-1), storage: { scheme: "comfy-input", key }, contentHash: null, metadata: {} });
-        widget(editor.node, "ryn_state").value = JSON.stringify(current); render();
-    };
+    panel.querySelector("[data-add-image]").onclick = () => addAsset("image");
+    panel.querySelector("[data-add-video]").onclick = () => addAsset("video");
+    panel.querySelector("[data-add-audio]").onclick = () => addAsset("audio");
     panel.querySelector("[data-add-lora]").onclick = () => {
         const current = timelineToRynState(editor, editor.timeline);
-        const activeSceneId = String(widget(editor.node, "scene_id")?.value || current.scenes[0]?.id || "");
-        const target = current.scenes.find((item) => item.id === activeSceneId) || current.scenes[0];
-        const stack = target.settings.loraStack;
-        stack.push({ id: uid("lora"), filename: "", strength: 1, enabled: true, order: stack.length });
-        widget(editor.node, "ryn_state").value = JSON.stringify(current); render();
+        const scene = currentScene(current);
+        scene.settings.loraStack.push({ id: uid("lora"), filename: "", strength: 1, enabled: true, order: scene.settings.loraStack.length });
+        widget(editor.node, "ryn_state").value = JSON.stringify(current);
+        render();
     };
+    const updateSelectionUI = editor.updateSelectionUI?.bind(editor);
+    if (updateSelectionUI) {
+        editor.updateSelectionUI = (...args) => {
+            const result = updateSelectionUI(...args);
+            render();
+            return result;
+        };
+    }
     render();
 }
